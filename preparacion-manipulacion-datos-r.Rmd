@@ -1,0 +1,118 @@
+---
+title: "Práctica Preparación y Manipulación Datos con R"
+output: html_document
+---   
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introducción
+Limpiar el dataset y prepararlo para posibles análisis/modelos
+
+
+##Carga de los datos
+Debemos descargar los datos desde una url, para tener mas estructurado el proyecto creare un directorio de datos donde guardare los dataset descargados. Una vez descargado los archivos generare los data frame.
+```{r message=FALSE}
+
+#limpio el espacio de trabajo
+rm(list=ls())
+#compruebo que estoy en el espacio de trabajo que deseo, si quisiera cambiarlo utilizaria la funcion setwd("ruta/deseada")
+getwd()
+
+#creo el directorio datos sino existe
+if(!file.exists("./datos")) { 
+   dir.create("datos")
+}
+
+#Guardo la url en una variable y utilizo la funcion gsheet2tbl de la libreria gsheet para descargar el data frame
+library(gsheet)
+fileUrl <- "https://docs.google.com/spreadsheets/d/1CDWBeqpUTBd1TkmDz_M6UGRWdHgU7LOcoiGRTvIttKA/edit#gid=0"
+messy.dataset <- gsheet2tbl(fileUrl)
+tidy.dataset <- messy.dataset 
+#elimino la variable fileUrl
+rm(fileUrl)
+
+
+#creo una variable con una marca de tiempo para saber que dia descarge el fichero, necesito la libreria lubridate, me ha tocado utilizar la ayuda para ver como se ejecutaba la funcion date
+??date
+library(lubridate)
+fechaDescargaMessyDataset <- date(Sys.time())
+
+#instacio las librerias que voy a necesitar
+library(stringr)
+library(tidyr)
+library(dplyr)
+
+#Cambio el nombre las vaiables para que sean mas manejables
+names(tidy.dataset) <- c("year", "area" , "street", "street2", "html")
+
+#Elimino la ultima columna, solo esta rellena en unas pocas filas y no tiene ningun valor
+columnas <- c("year", "area" , "street", "street2")
+tidy.dataset <- tidy.dataset[ , columnas ]
+
+#elimno la variable columnas
+rm(columnas)
+
+#paso a mayusculas todas las columnas
+tidy.dataset <- mutate_each(tidy.dataset, funs(toupper)) 
+
+#quito los espacios del principio y del final de cada valor en todas las columnas
+tidy.dataset <- mutate_each(tidy.dataset, funs(str_trim))
+
+#cambio el valor Å por un espacio en la columna street
+tidy.dataset$street <- gsub("Å"," ",tidy.dataset$street)
+
+#Relleno los valores vacios de la columna area con el valor que tuviera por encima
+tidy.dataset <- tidy.dataset %>% mutate(area = ifelse(area == "", NA, area)) %>%
+  fill(area)
+
+#Elimino los signos de puntuacion al final de cada valor, y cambio los espacios con "," y los espacios con ".", para todas las columnas
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub("[[:punct:]]$","",x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" , ", "," ,x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" ,", ",", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(", ", ",", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" [.] " ,".", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" [.]" ,".", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub("[.] " ,".", x)))
+
+#elimino las filas duplicadas
+tidy.dataset <- unique(tidy.dataset)
+
+#Utilizo la siguiente funcion para eliminar las columnas duplicadas, lo que hace basicamente en comparar las columnas de dos en dos y decidir si las columnas son iguales, si hay dos iguales elimina la primera
+keepUnique <- function(x){
+  combs <- combn(names(x),2)
+  
+  dups <- mapply(identical,
+                 x[combs[1,]],
+                 x[combs[2,]])
+  
+  drop <- combs[2,][dups]
+  x[ !names(x) %in% drop ]
+}
+tidy.dataset <- keepUnique(tidy.dataset)
+
+#podriamos reducir mas el dataset si las abreviaturas de ROAD Y STREET las modificamos para que se la palabra entera, seria cambiar RD -> ROAD, ST -> STREET
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" RD ", " ROAD ", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" RD,", " ROAD,", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" RD[.]", " ROAD.", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" RD$", " ROAD", x)))
+
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" ST ", " STREET ", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" ST,", " STREET,", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" ST[.]", " STREET", x)))
+tidy.dataset <- as.data.frame(apply( tidy.dataset, 2, function(x) gsub(" ST$", " STREET", x)))
+
+#me imagino que conociendo algo mas de los datos podriamos reducir mas el dataset
+#volvemos a eliminar las filas duplicadas
+tidy.dataset <- unique(tidy.dataset)
+
+#guardo el dataset en un archivo llamado dataset.csv, con la funcion write
+write.csv(tidy.dataset, file = "datos/dataset.csv")
+
+#muestro el directorio datos para ver que archivos contiene
+list.files("./datos")
+
+
+
+```
